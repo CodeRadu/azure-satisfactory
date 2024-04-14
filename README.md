@@ -22,13 +22,6 @@ public_key          = "your_public_key"
 start_time          = "your_start_time"
 stop_time           = "your_stop_time"
 timezone            = "your_timezone"
-vm_type             = "Standard_B2als_v2"
-location            = "westeurope"
-username            = "your username"
-public_key          = "your ssh public key"
-start_time          = "YYYY-MM-DD'T'HH:MM:SS'Z'"
-stop_time           = "same as start_time"
-timezone            = "your timezone"
 ```
 
 - Replace the placeholders with your own values
