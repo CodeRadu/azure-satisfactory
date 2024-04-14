@@ -196,7 +196,7 @@ resource "azurerm_role_assignment" "uami" {
 }
 
 resource "azurerm_automation_account" "scheduler" {
-  name                = "vm-scheduler"
+  name                = "vm-scheduler-${var.resource_group_name}"
   location            = var.location
   resource_group_name = azurerm_resource_group.main.name
   sku_name            = "Basic"
