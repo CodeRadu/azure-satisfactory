@@ -1,0 +1,85 @@
+#cloud-config
+cloud_final_modules:
+  - [scripts-user, always]
+  - [package-update-upgrade-install, always]
+  - [write_files, always]
+  - [runcmd, always]
+bootcmd:
+  - until [ -e /dev/disk/azure/scsi1/lun10 ]; do sleep 1; done
+device_aliases:
+  home: /dev/disk/azure/scsi1/lun10
+disk_setup:
+  home:
+    table_type: gpt
+    layout: true
+fs_setup:
+  - label: home
+    filesystem: ext4
+    device: home.1
+mounts:
+  - ["LABEL=home", "/home", "ext4", "defaults,noatime"]
+apt:
+  sources:
+    docker.list:
+      source: deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable
+      keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+  conf: |
+    Acquire::Retries "60";
+    DPkg::Lock::Timeout "60";
+packages:
+  - docker-ce
+  - docker-ce-cli
+  - docker-compose-plugin
+  - git
+groups:
+  - docker
+users:
+  - name: ${username}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: sudo, docker
+    ssh_authorized_keys:
+      - ${public_key}
+    shell: /bin/bash
+write_files:
+  - path: /home/${username}/satisfactory/docker-compose.yml
+    content: |
+      services:
+        satisfactory-server:
+          container_name: "satisfactory-server"
+          hostname: "satisfactory-server"
+          image: "wolveix/satisfactory-server:latest"
+          ports:
+            - "7777:7777/udp"
+            - "15000:15000/udp"
+            - "15777:15777/udp"
+          volumes:
+            - "./data:/config"
+          environment:
+            - MAXPLAYERS=4
+            - PGID=1000
+            - PUID=1000
+            - STEAMBETA=false
+          restart: unless-stopped
+  - path: /etc/systemd/system/satisfactory.service
+    content: |
+      [Unit]
+      Description=Satisfactory Server
+      After=docker.service
+      Requires=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      User=${username}
+      Group=${username}
+      WorkingDirectory=/home/${username}/satisfactory
+      ExecStart=/usr/bin/docker compose up -d
+      ExecStop=/usr/bin/docker compose down
+
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - ["sleep", "5"]
+  - ["systemctl", "daemon-reload"]
+  - ["systemctl", "enable", "satisfactory"]
+  - ["systemctl", "start", "satisfactory"]
