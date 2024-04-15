@@ -33,6 +33,11 @@ variable "public_key" {
   description = "The public key for SSH authentication."
 }
 
+variable "data_disk_size" {
+  type        = number
+  description = "The size of the data disk in GB."
+}
+
 variable "start_time" {
   type        = string
   description = "The time when the virtual machine will start."
@@ -171,7 +176,7 @@ resource "azurerm_managed_disk" "home" {
   resource_group_name  = azurerm_resource_group.main.name
   create_option        = "Empty"
   storage_account_type = "Standard_LRS"
-  disk_size_gb         = "16"
+  disk_size_gb         = var.data_disk_size
 }
 
 resource "azurerm_virtual_machine_data_disk_attachment" "home" {
