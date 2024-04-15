@@ -2,7 +2,7 @@
 cloud_final_modules:
   - [scripts-user, always]
   - [package-update-upgrade-install, always]
-  - [write_files, always]
+  - write_files
   - [runcmd, always]
 bootcmd:
   - until [ -e /dev/disk/azure/scsi1/lun10 ]; do sleep 1; done
@@ -80,6 +80,11 @@ write_files:
       WantedBy=multi-user.target
 runcmd:
   - ["sleep", "5"]
+  - ["fallocate", "-l", "2G", "/swapfile"]
+  - ["dd", "if=/dev/zero", "of=/swapfile", "bs=1M", "count=2048"]
+  - ["chmod", "600", "/swapfile"]
+  - ["mkswap", "/swapfile"]
+  - ["swapon", "/swapfile"]
   - ["systemctl", "daemon-reload"]
   - ["systemctl", "enable", "satisfactory"]
   - ["systemctl", "start", "satisfactory"]
