@@ -91,6 +91,7 @@ resource "azurerm_subnet" "main" {
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = ["10.0.0.0/24"]
+  service_endpoints    = ["Microsoft.Storage"]
 }
 
 resource "azurerm_public_ip" "main" {
@@ -177,25 +178,39 @@ resource "azurerm_linux_virtual_machine" "main" {
   priority        = "Spot"
   eviction_policy = "Deallocate"
   user_data = base64encode(templatefile("config.yaml", {
-    username   = var.username
-    public_key = var.public_key
+    username      = var.username
+    public_key    = var.public_key
+    smb_share_url = "//${azurerm_storage_account.data.primary_file_host}/${azurerm_storage_share.data.name}"
+    smb_username  = azurerm_storage_share.data.storage_account_name
+    smb_password  = azurerm_storage_account.data.primary_access_key
   }))
 }
 
-resource "azurerm_managed_disk" "home" {
-  name                 = "home"
-  location             = var.location
-  resource_group_name  = azurerm_resource_group.main.name
-  create_option        = "Empty"
-  storage_account_type = "Standard_LRS"
-  disk_size_gb         = var.data_disk_size
+resource "random_id" "storage_suffix" {
+  byte_length = 4
 }
 
-resource "azurerm_virtual_machine_data_disk_attachment" "home" {
-  managed_disk_id    = azurerm_managed_disk.home.id
-  virtual_machine_id = azurerm_linux_virtual_machine.main.id
-  lun                = 10
-  caching            = "ReadWrite"
+resource "azurerm_storage_account" "data" {
+  name                     = "data${random_id.storage_suffix.hex}"
+  resource_group_name      = azurerm_resource_group.main.name
+  location                 = var.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  access_tier              = "Hot"
+}
+
+resource "azurerm_storage_account_network_rules" "data" {
+  storage_account_id         = azurerm_storage_account.data.id
+  default_action             = "Allow"
+  virtual_network_subnet_ids = [azurerm_subnet.main.id]
+}
+
+resource "azurerm_storage_share" "data" {
+  name                 = "saves"
+  storage_account_name = azurerm_storage_account.data.name
+  access_tier          = "Hot"
+  quota                = 10
+  enabled_protocol     = "SMB"
 }
 
 data "azurerm_subscription" "primary" {}

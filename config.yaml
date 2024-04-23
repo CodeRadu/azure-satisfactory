@@ -5,19 +5,19 @@ cloud_final_modules:
   - write_files
   - [runcmd, always]
 bootcmd:
-  - until [ -e /dev/disk/azure/scsi1/lun10 ]; do sleep 1; done
-device_aliases:
-  home: /dev/disk/azure/scsi1/lun10
-disk_setup:
-  home:
-    table_type: gpt
-    layout: true
-fs_setup:
-  - label: home
-    filesystem: ext4
-    device: home.1
+  - mkdir /etc/smbcredentials
+  - echo "username=${smb_username}" > /etc/smbcredentials/${smb_username}
+  - echo "password=${smb_password}" >> /etc/smbcredentials/${smb_username}
+  - chmod 600 /etc/smbcredentials/${smb_username}
+  - mkdir -p /home/${username}/satisfactory/data/saved
+  - chown -R ${username}:${username} /home/${username}/satisfactory
 mounts:
-  - ["LABEL=home", "/home", "ext4", "defaults,noatime"]
+  - [
+      "${smb_share_url}",
+      "/home/${username}/satisfactory/data/saved",
+      "cifs",
+      "defaults,credentials=/etc/smbcredentials/${smb_username},dir_mode=0777,file_mode=0777,uid=1000,gid=1000,serverino,nosharesock,actimeo=30",
+    ]
 apt:
   sources:
     docker.list:
