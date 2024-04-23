@@ -38,6 +38,18 @@ variable "data_disk_size" {
   description = "The size of the data disk in GB."
 }
 
+variable "enable_start_schedule" {
+  type        = bool
+  default     = true
+  description = "Enable the schedule for starting the virtual machine."
+}
+
+variable "enable_stop_schedule" {
+  type        = bool
+  default     = true
+  description = "Enable the schedule for stopping the virtual machine."
+}
+
 variable "start_time" {
   type        = string
   description = "The time when the virtual machine will start."
@@ -189,33 +201,37 @@ resource "azurerm_virtual_machine_data_disk_attachment" "home" {
 data "azurerm_subscription" "primary" {}
 
 resource "azurerm_user_assigned_identity" "subscription" {
+  count               = var.enable_start_schedule || var.enable_stop_schedule ? 1 : 0
   location            = var.location
   resource_group_name = azurerm_resource_group.main.name
   name                = "uaid"
 }
 
 resource "azurerm_role_assignment" "uami" {
+  count                = var.enable_start_schedule || var.enable_stop_schedule ? 1 : 0
   scope                = data.azurerm_subscription.primary.id
   role_definition_name = "Contributor"
-  principal_id         = azurerm_user_assigned_identity.subscription.principal_id
+  principal_id         = azurerm_user_assigned_identity.subscription[0].principal_id
 }
 
 resource "azurerm_automation_account" "scheduler" {
+  count               = var.enable_start_schedule || var.enable_stop_schedule ? 1 : 0
   name                = "vm-scheduler-${var.resource_group_name}"
   location            = var.location
   resource_group_name = azurerm_resource_group.main.name
   sku_name            = "Basic"
   identity {
     type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.subscription.id]
+    identity_ids = [azurerm_user_assigned_identity.subscription[0].id]
   }
 }
 
 resource "azurerm_automation_runbook" "vm_power" {
+  count                   = var.enable_start_schedule || var.enable_stop_schedule ? 1 : 0
   name                    = "vm-power-runbook"
   location                = var.location
   resource_group_name     = azurerm_resource_group.main.name
-  automation_account_name = azurerm_automation_account.scheduler.name
+  automation_account_name = azurerm_automation_account.scheduler[0].name
   runbook_type            = "PowerShell"
   content                 = <<EOF
     Param(
@@ -224,8 +240,8 @@ resource "azurerm_automation_runbook" "vm_power" {
 
     $resourcegroupname = "${azurerm_resource_group.main.name}"
     $vmname            = "${azurerm_linux_virtual_machine.main.name}"
-    $uami              = "${azurerm_user_assigned_identity.subscription.client_id}"
-    $automationaccount = "${azurerm_automation_account.scheduler.name}"
+    $uami              = "${azurerm_user_assigned_identity.subscription[0].client_id}"
+    $automationaccount = "${azurerm_automation_account.scheduler[0].name}"
 
     $null = Disable-AzContextAutosave -Scope Process
    
@@ -246,19 +262,21 @@ resource "azurerm_automation_runbook" "vm_power" {
 }
 
 resource "azurerm_automation_schedule" "start_vm" {
+  count                   = var.enable_start_schedule ? 1 : 0
   name                    = "start-vm-schedule"
   resource_group_name     = azurerm_resource_group.main.name
-  automation_account_name = azurerm_automation_account.scheduler.name
+  automation_account_name = azurerm_automation_account.scheduler[0].name
   frequency               = "Day"
   start_time              = var.start_time
   timezone                = var.timezone
 }
 
 resource "azurerm_automation_job_schedule" "start_vm" {
+  count                   = var.enable_start_schedule ? 1 : 0
   resource_group_name     = azurerm_resource_group.main.name
-  automation_account_name = azurerm_automation_account.scheduler.name
-  runbook_name            = azurerm_automation_runbook.vm_power.name
-  schedule_name           = azurerm_automation_schedule.start_vm.name
+  automation_account_name = azurerm_automation_account.scheduler[0].name
+  runbook_name            = azurerm_automation_runbook.vm_power[0].name
+  schedule_name           = azurerm_automation_schedule.start_vm[0].name
 
   parameters = {
     powerstate = "start"
@@ -266,19 +284,21 @@ resource "azurerm_automation_job_schedule" "start_vm" {
 }
 
 resource "azurerm_automation_schedule" "stop_vm" {
+  count                   = var.enable_stop_schedule ? 1 : 0
   name                    = "stop-vm-schedule"
   resource_group_name     = azurerm_resource_group.main.name
-  automation_account_name = azurerm_automation_account.scheduler.name
+  automation_account_name = azurerm_automation_account.scheduler[0].name
   frequency               = "Day"
   start_time              = var.stop_time
   timezone                = var.timezone
 }
 
 resource "azurerm_automation_job_schedule" "stop_vm" {
+  count                   = var.enable_stop_schedule ? 1 : 0
   resource_group_name     = azurerm_resource_group.main.name
-  automation_account_name = azurerm_automation_account.scheduler.name
-  runbook_name            = azurerm_automation_runbook.vm_power.name
-  schedule_name           = azurerm_automation_schedule.stop_vm.name
+  automation_account_name = azurerm_automation_account.scheduler[0].name
+  runbook_name            = azurerm_automation_runbook.vm_power[0].name
+  schedule_name           = azurerm_automation_schedule.stop_vm[0].name
 
   parameters = {
     powerstate = "stop"
@@ -293,10 +313,18 @@ output "public_ip" {
   value = azurerm_public_ip.main.ip_address
 }
 
+output "start_schedule_enabled" {
+  value = var.enable_start_schedule
+}
+
+output "stop_schedule_enabled" {
+  value = var.enable_stop_schedule
+}
+
 output "start_time" {
-  value = formatdate("hh:mm", azurerm_automation_schedule.start_vm.start_time)
+  value = formatdate("hh:mm", var.start_time)
 }
 
 output "stop_time" {
-  value = formatdate("hh:mm", azurerm_automation_schedule.stop_vm.start_time)
+  value = formatdate("hh:mm", var.stop_time)
 }
