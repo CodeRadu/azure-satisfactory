@@ -211,6 +211,9 @@ resource "azurerm_storage_share" "data" {
   access_tier          = "Hot"
   quota                = 10
   enabled_protocol     = "SMB"
+  lifecycle {
+    prevent_destroy = true # Prevent accidental deletion
+  }
 }
 
 data "azurerm_subscription" "primary" {}
